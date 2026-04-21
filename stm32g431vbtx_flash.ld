@@ -60,10 +60,10 @@ _estack = ORIGIN(RAM) + LENGTH(RAM);    /* end of RAM */
 **       so in order to keep same API with Linux, we allow tiny heap
 **.      but ideally dynamic memory should not be used at all
 */
-_Min_Heap_Size = 0x100;   /* 256 Bytes */
+_Min_Heap_Size = 0x00;   /* 0 Bytes */
 
 /* NOTE: profiling showed top usage of ~700 bytes */
-_Min_Stack_Size = 0x1000; /* 4096 Bytes Stack */
+_Min_Stack_Size = 0x400; /* 1024 Bytes Stack */
 
 /* NOTE: For stack usage profiling */
 __StackTop = ORIGIN(RAM) + LENGTH(RAM);
@@ -73,7 +73,7 @@ __StackLimit = __StackTop - _Min_Stack_Size;
 MEMORY
 {
 RAM (xrw)      : ORIGIN = 0x20000000, LENGTH = 32K
-FLASH (rx)      : ORIGIN = 0x8000000, LENGTH = 128K
+FLASH (rx)      : ORIGIN = 0x8000000, LENGTH = 12K
 }
 
 /* Define output sections */

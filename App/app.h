@@ -1,67 +1,67 @@
 #pragma once
 
+#include <stdbool.h>
+#include <stdint.h>
+#include <stddef.h>
+
 #include "main.h"
 #include "stm32g4xx_hal.h"
 
-#include <cyphal/cyphal.h>
-#include <voltbro/utils.hpp>
-#include <voltbro/motors/bldc/vbdrive/vbdrive.hpp>
+#define DEFAULT_NODE_ID 0x69U
+#define BL_CAN_STD_ID 0x69U
 
-#include "state_manager.hpp"
+#define APP_START_ADDR 0x08003000UL
+#define APP_END_ADDR 0x08020000UL
+#define BOOT_FLASH_PAGE_SIZE 0x800UL
+#define NODE_ID_EEPROM_I2C_DEV_ADDR 0x50U
+#define NODE_ID_EEPROM_MEM_ADDR 0x0000U
+#define NODE_ID_MAGIC 0x424C4E49UL
 
-// state_manager.hpp
-// CALIBRATION_PLACEMENT
-// CONFIG_PLACEMENT
-// IND_SENSOR_STATE_PLACEMENT
+typedef struct __attribute__((packed)) {
+    uint32_t magic;
+    uint8_t node_id;
+    uint8_t reserved[3];
+} NodeIdRecord;
 
-// communications.cpp
-inline constexpr size_t CYPHAL_QUEUE_SIZE = 50;
+#define BL_STATUS_DONE 0xD0U
+#define BL_STATUS_ERR  0xE0U
 
-// NOTE: due to RAM constraints, this buffer is first used for calibration, then reused for Cyphal queue.
-//       It should be big enough for both purposes. For calibration, it should be >=(2048+1)*4 for guaranteed alignment
-constexpr size_t SHARED_BUFFER_SIZE = std::max(
-    (CALIBRATION_BUFF_SIZE + 1) * sizeof(int),
-    static_cast<size_t>(CYPHAL_QUEUE_SIZE * sizeof(CanardTxQueueItem) * QUEUE_SIZE_MULT)
-);
-extern std::byte cyphal_queue_buffer_shared[SHARED_BUFFER_SIZE];
+typedef enum {
+    BOOT_CMD_START = 1,
+    BOOT_CMD_DATA = 2,
+    BOOT_CMD_DONE = 3,
+    BOOT_CMD_GET_ID = 5
+} BootCommand;
 
-inline constexpr millis DELAY_ON_ERROR_MS = 500;
-std::shared_ptr<CyphalInterface> get_interface();
-void in_loop_reporting(millis);
-void setup_subscriptions();
-void cyphal_loop();
-void start_cyphal();
-void set_cyphal_mode(uint8_t mode);
+typedef enum {
+    BootStateIdle = 0,
+    BootStateReceiving = 1,
+    BootStateVerifyCrc = 2,
+    BootStateError = 3
+} BootState;
 
-// common.cpp
-micros system_time();
-micros micros_64();
-millis millis_32();
-void start_timers();
+typedef struct {
+    BootState state;
+    uint32_t expected_size;
+    uint32_t expected_crc32;
+    uint32_t received_size;
+    uint32_t running_crc32;
+    bool flash_prepared;
+} BootSession;
 
-// app.cpp
-VBDrive* get_motor();
-EEPROM& get_eeprom();
-// actions (in app.cpp)
-bool is_able_to_calibrate();
-bool do_calibrate();
-
-//fdcan.cpp
 extern FDCAN_HandleTypeDef hfdcan1;
 
-// state_manager.cpp
-DriveStateController& get_app_manager();
-void configure_fdcan(FDCAN_HandleTypeDef*);
+BootSession* get_boot_session(void);
+uint8_t node_id_read(void);
 
-template <typename T>
-inline T value_or_default(T value, T default_value) {
-    return std::isnan(value) ? default_value : value;
-}
+void configure_fdcan(FDCAN_HandleTypeDef* hfdcan);
+void start_transport(void);
+void transport_loop(void);
 
-template <typename T>
-inline T value_or_default(T value, T default_value, T not_set_value) {
-    return (value == not_set_value) ? default_value : value;
-}
+void boot_on_start(uint32_t size, uint32_t crc32);
+bool boot_on_data(uint32_t offset, const uint8_t* data, uint8_t size);
+bool boot_on_done(void);
+void boot_send_ack(uint8_t status);
 
-//command_mode.cpp
-void start_uart_recv_it();
+bool is_application_valid(void);
+

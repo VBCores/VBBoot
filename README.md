@@ -1,192 +1,87 @@
-# STM32 BLDC Motor Controller
+# VBBoot
 
-> This is a repo for VBDrive firmware
->
-> [Buy here]()
+`VBBoot` is a minimal CAN bootloader for STM32G431.
 
-## UART Configuration / Test Interface
+The bootloader:
+- checks application validity at startup and jumps to app if valid;
+- otherwise stays in boot mode and accepts firmware frames over **Classic CAN 2.0** (`FDCAN_FRAME_CLASSIC`, no FD/BRS);
+- writes firmware to flash at `0x08003000..0x0801FFFF`.
 
-The board uses a UART-based serial interface for configuration, calibration, test control, and debug logging.
+## Boot Transport (CAN)
 
-### **Connection Details**
+- CAN ID is `node_id` (standard 11-bit identifier).
+- RX/TX use the same CAN ID.
+- ACK payload is 1 byte: `0xD0` (done) or `0xE0` (error).
 
-* **Baud Rate**: 19200
-* **Format**: ASCII commands; trailing `\r`, `\n`, spaces and tabs are stripped automatically
+### Supported commands
 
----
+- `BOOT_CMD_START` (`0x01`)
+  - Part 0 frame: `[0x01, 0x00, size_u32_le(4), crc32_low16_le(2)]`
+  - Part 1 frame: `[0x01, 0x01, crc32_high16_le(2)]`
+- `BOOT_CMD_DATA` (`0x02`)
+  - Frame: `[0x02, data...]`
+  - Data is buffered and written to flash in 8-byte aligned chunks.
+- `BOOT_CMD_DONE` (`0x03`)
+  - Finalize, verify size + CRC32, ACK and jump to app on success.
 
-### **Command Syntax**
+`BOOT_CMD_GET_ID` enum value exists in code (`0x05`) but is not handled in transport state machine.
 
-* **Read parameter**:
-  `<parameter_name>:?`
-  Example: `node_id:?` -> `node_id:11`
+## node_id source (EEPROM)
 
-* **Write parameter**:
-  `<parameter_name>:<value>`
-  Example: `kp:0.35` -> `OK: kp :0.350000`
+`node_id` is read from external I2C EEPROM (same idea as VBDrive config backend):
 
----
+- I2C bus: `I2C2` (`hi2c2`)
+- EEPROM device address: `0x50`
+- EEPROM offset: `0x0000`
+- Record format:
 
-### **Mode and Command Overview**
-
-| Command | Available State | Description |
-| ------- | --------------- | ----------- |
-| `CONFIG` | Any non-TEST state | Enter configuration mode and stop motor |
-| `SAVE` | CONFIG | Persist updated config to EEPROM (if changed), exit config mode, start motor |
-| `RESET` | CONFIG | Load default config values in RAM (does NOT affect current session - requires `SAVE` or `APPLY` to persist) |
-| `APPLY` | Any non-TEST state | Persist updated config (if changed) and reboot |
-| `CALIBRATE` | RUNNING, NOT_CALIBRATED | Run calibration action |
-| `TEST` | RUNNING | Enter test mode |
-| `STOP` | TEST | Exit test mode, clear FOC target, stop test logging |
-
----
-
-### **Configuration Parameters**
-
-| Parameter      | Description                                         | Type    | Example Values |
-| -------------- | --------------------------------------------------- | ------- | -------------- |
-| `gear_ratio`   | Gear ratio of the drive                             | Integer | `1`, `5`, `15` |
-| `max_current`  | Maximum motor current (A)                           | Float   | `5.0`, `10.5`  |
-| `max_speed`    | Maximum motor speed (rad)                           | Float   | `1000.0`       |
-| `max_torque`   | Maximum torque output (Nm)                          | Float   | `1.2`          |
-| `angle_offset` | Motor angle offset (rad)                            | Float   | `0.0`, `15.5`  |
-| `min_angle`    | Minimum allowed angle (rad)                         | Float   | `-30.0`        |
-| `max_angle`    | Maximum allowed angle (rad)                         | Float   | `30.0`         |
-| `torque_const` | Torque constant (Nm/A)                              | Float   | `0.12`         |
-| `kp`           | Current proportional gain                           | Float   | `0.25`         |
-| `ki`           | Current integral gain                               | Float   | `0.01`         |
-| `kd`           | Current derivative gain                             | Float   | `0.005`        |
-| `filter_a`     | Main filter parameter A                             | Float   | `0.5`          |
-| `filter_g1`    | Filter gain 1                                       | Float   | `0.1`          |
-| `filter_g2`    | Filter gain 2                                       | Float   | `0.1`          |
-| `filter_g3`    | Filter gain 3                                       | Float   | `0.1`          |
-| `I_lpf`        | Current low-pass filter coefficient                 | Float   | `0.1`          |
-| `angle_encoder`| Angle encoder type enum, 0 rotor, 1 - shaft         | Integer | `0`, `1`.      |
-| `node_id`      | Cyphal/CAN node ID                                  | Integer | `1`, `42`      |
-| `data_baud`    | FDCAN data baud rate enum (see below)               | Enum    | `0`, `1`, `2`  |
-| `nominal_baud` | FDCAN nominal baud rate enum (see below)            | Enum    | `3`, `4`       |
-
----
-
-### **FDCAN Baud Rate Configuration**
-
-| parameter           | Value Name | Speed    | Numeric Value |
-|---------------------|------------|----------|---------------|
-| `nominal_baud`      | `KHz62`    | 62.5 kHz | `0`           |
-|                     | `KHz125`   | 125 kHz  | `1`           |
-|                     | `KHz250`   | 250 kHz  | `2`           |
-|                     | `KHz500`   | 500 kHz  | `3`           |
-|                     | `KHz1000`  | 1 MHz    | `4`           |
-|---------------------|------------|----------|---------------|
-| `data_baud`         | `KHz1000`  | 1 MHz    | `0`           |
-|                     | `KHz2000`  | 2 MHz    | `1`           |
-|                     | `KHz4000`  | 4 MHz    | `2`           |
-|                     | `KHz8000`  | 8 MHz    | `3`           |
-
----
-
-### **TEST Mode Commands**
-
-| Command | Description |
-| ------- | ----------- |
-| `do.velocity:<value>` | Set velocity target for FOC test controller |
-| `do.angle:<value>` | Set angle target for FOC test controller |
-| `do.free` | Zero target (no effort mode) |
-| `min_angle:<value or ?>` | Read/write lower position limit during test |
-| `max_angle:<value or ?>` | Read/write upper position limit during test |
-| `angle_offset:<value or ?>` | Read/write angle offset during test |
-| `log.start` | Start UART test logging |
-| `log.stop` | Stop UART test logging |
-| `STOP` | Exit test mode |
-
-When logging is enabled in TEST mode, UART periodically prints:
-
-* `rotor sensor: <u16>`
-* `shaft sensor: <u16>`
-* `shaft angle : <float>`
-
----
-
-### **Response Format**
-
-* **Success**: `OK: <param>:<value>` or `OK: <param> :<value>` (set operations)
-* **Error**: `ERROR: Unknown command`, `ERROR: Unknown parameter`, `ERROR: Invalid value`
-* **Config persistence**: Settings are written to EEPROM on `SAVE`/`APPLY` (not on every `SET`)
-
----
-
-### **Example Sessions**
-
-```bash
-# Configuration flow
-> CONFIG
-CONFIG MODE ENABLED
-> node_id:11
-OK: node_id:11
-> gear_ratio:36
-OK: gear_ratio:36
-> SAVE
-Saved config
-NOTE: config changes not applied! To apply, run APPLY or reset controller
-> APPLY
+```c
+typedef struct __attribute__((packed)) {
+    uint32_t magic;      // must be NODE_ID_MAGIC (0x424C4E49)
+    uint8_t node_id;     // valid range: 1..127
+    uint8_t reserved[3];
+} NodeIdRecord;
 ```
 
+If EEPROM is not ready, read fails, `magic` is invalid, or `node_id` is out of range, bootloader uses `DEFAULT_NODE_ID` (`0x69`).
+
+## Build
+
+Use CMake presets (toolchain is configured in `cmake/gcc-arm-none-eabi.cmake`):
+
 ```bash
-# Test flow
-> TEST
-Entering TEST mode
-> do.velocity:5
-Set velocity: <5.000000>
-> log.start
-# periodic sensor logs...
-> STOP
-Stopping TEST mode
+cmake --preset RelWithDebInfo
+cmake --build --preset RelWithDebInfo
 ```
 
-## FDCAN Cyphal Runtime Interface
+Or explicitly:
 
-The BLDC Motor Controller communicates over **Cyphal/FDCAN** to publish real-time telemetry and receive control commands.
+```bash
+cmake -S . -B build/RelWithDebInfo -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DCMAKE_TOOLCHAIN_FILE=cmake/gcc-arm-none-eabi.cmake
+cmake --build build/RelWithDebInfo
+```
 
-> We use some custom datatypes, see here: [VoltBro cyphal types repository](https://github.com/voltbro/cyphal-types)
+Post-build artifacts:
+- `VBBoot.elf`
+- `VBBoot.hex`
+- `VBBoot.bin`
 
-### **Published Messages**
+## Flash layout
 
-| Port ID | Message Type                              | Interval | Description                                   |
-| ------- | ----------------------------------------- | -------- | --------------------------------------------- |
-| `3811`  | `voltbro.foc.state_simple.1.0`            | 1 ms     | Current state (angle, speed, torque, etc.)    |
+- Bootloader flash region: `0x08000000`, length `12K` (see linker script).
+- Application start: `0x08003000` (`APP_START_ADDR`).
 
----
+## Python CAN test
 
-### **Subscribed Messages**
+Test script is in `tests/test_bootloader_fdcan.py`.
 
-| Port ID Formula  | Message Type                       | Description                                                                 |
-| ---------------- | ---------------------------------- | --------------------------------------------------------------------------- |
-| `2107 + node_id` | `voltbro.foc.command.1.0`          | Direct FOC target command: torque, angle, velocity, and PID gains           |
-| `3407 + node_id` | `voltbro.foc.specific_control.1.0` | High-level, single parameter control setpoint                               |
+Example:
 
----
-
-### **Registers**
-
-| Register Name | Type   | Description                                         |
-| ------------- | ------ | --------------------------------------------------- |
-| `motor.is_on` | `bool` | Turns underlying motor driver on/off                |
-
----
-
-### **Standard Cyphal Services**
-
-The controller also supports standard Cyphal services:
-
-* **uavcan.node.GetInfo** — Reports node information (name: `"org.voltbro.vbdrive"`)
-* **uavcan.register.Access** — For reading/writing runtime parameters
-* **uavcan.register.List** — List registers
-* **uavcan.node.Heartbeat** — Node status monitoring
-
-### **Standard Cyphal Messages**
-
-The controller also publishes standard Cyphal messages:
-
-* **uavcan.node.Heartbeat** - default heartbeat message
-
----
+```bash
+pytest tests/test_bootloader_fdcan.py \
+  --hex=/path/to/app.hex \
+  --can-iface=socketcan \
+  --can-channel=can0 \
+  --ack-timeout=0.8
+```

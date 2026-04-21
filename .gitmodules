@@ -1,6 +1,6 @@
 [submodule "Drivers/libvoltbro"]
 	path = Drivers/libvoltbro
-	url = git@github.com:VBCores/libvoltbro.git
+	url = https://github.com/VBCores/libvoltbro.git
 [submodule "Drivers/libcxxcanard"]
 	path = Drivers/libcxxcanard
-	url = git@github.com:VBCores/libcxxcanard.git
+	url = https://github.com/VBCores/libcxxcanard.git
