@@ -83,5 +83,6 @@ pytest tests/test_bootloader_fdcan.py \
   --hex=/path/to/app.hex \
   --can-iface=socketcan \
   --can-channel=can0 \
-  --ack-timeout=0.8
+  --ack-timeout=0.8 \
+  --node-id=0x69
 ```

@@ -16,6 +16,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption("--can-iface", action="store", default="socketcan", help="python-can interface")
     parser.addoption("--can-channel", action="store", default="can0", help="CAN channel, e.g. can0")
     parser.addoption("--ack-timeout", action="store", default="0.8", help="ACK timeout in seconds")
+    parser.addoption(
+        "--node-id",
+        action="store",
+        default="0x69",
+        help="Bootloader CAN node ID (dec or hex, e.g. 105 or 0x69)",
+    )
 
 
 @pytest.fixture(scope="session")
@@ -33,14 +39,19 @@ def fw_image(pytestconfig: pytest.Config) -> bytes:
 @pytest.fixture(scope="session")
 def flashing_params(pytestconfig: pytest.Config) -> dict:
     ack_timeout = float(pytestconfig.getoption("--ack-timeout"))
+    raw_node_id = str(pytestconfig.getoption("--node-id"))
+    node_id = int(raw_node_id, 0)
 
     if ack_timeout <= 0:
         pytest.fail("--ack-timeout must be > 0")
+    if node_id <= 0 or node_id > 0x7FF:
+        pytest.fail("--node-id must be in range 1..0x7FF")
 
     return {
         "iface": pytestconfig.getoption("--can-iface"),
         "channel": pytestconfig.getoption("--can-channel"),
         "ack_timeout": ack_timeout,
+        "node_id": node_id,
     }
 
 

@@ -10,8 +10,6 @@ except ImportError as exc:  # pragma: no cover
     raise RuntimeError("python-can is required: pip install python-can") from exc
 
 
-BL_CAN_STD_ID = 0x69
-
 BL_STATUS_DONE = 0xD0
 BL_STATUS_ERR = 0xE0
 
@@ -27,8 +25,8 @@ def debug_print(msg: str) -> None:
 
 
 def test_flash_bootloader_via_can(fw_image: bytes, flashing_params: dict) -> None:
-    cmd_id = BL_CAN_STD_ID
-    ack_id = BL_CAN_STD_ID
+    cmd_id = flashing_params["node_id"]
+    ack_id = flashing_params["node_id"]
 
     crc32 = binascii.crc32(fw_image) & 0xFFFFFFFF
     total_size = len(fw_image)
@@ -44,6 +42,7 @@ def test_flash_bootloader_via_can(fw_image: bytes, flashing_params: dict) -> Non
     ) as bus:
         debug_print(f"Размер прошивки: {total_size} байт")
         debug_print(f"CRC32: 0x{crc32:08X}")
+        debug_print(f"CAN node_id/arbitration_id: 0x{cmd_id:03X}")
         start_payload = (
             bytes([BOOT_CMD_START, 0])
             + struct.pack("<I", total_size)
