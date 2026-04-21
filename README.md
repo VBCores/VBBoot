@@ -51,7 +51,7 @@ Use CMake presets (toolchain is configured in `cmake/gcc-arm-none-eabi.cmake`):
 
 ```bash
 cmake --preset RelWithDebInfo
-cmake --build --preset RelWithDebInfo
+cmake --build build/RelWithDebInfo
 ```
 
 Or explicitly:
