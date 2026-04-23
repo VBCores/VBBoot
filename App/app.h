@@ -54,7 +54,7 @@ extern FDCAN_HandleTypeDef hfdcan1;
 BootSession* get_boot_session(void);
 uint8_t node_id_read(void);
 
-void configure_fdcan(FDCAN_HandleTypeDef* hfdcan);
+void configure_fdcan(FDCAN_HandleTypeDef* hfdcan, uint32_t node_id);
 void start_transport(void);
 void transport_loop(void);
 

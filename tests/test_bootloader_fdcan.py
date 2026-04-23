@@ -30,7 +30,7 @@ def test_flash_bootloader_via_can(fw_image: bytes, flashing_params: dict) -> Non
 
     crc32 = binascii.crc32(fw_image) & 0xFFFFFFFF
     total_size = len(fw_image)
-    data_chunk_size = 7
+    data_chunk_size = 63
     start_timeout = flashing_params["ack_timeout"]
     if start_timeout < 5.0:
         start_timeout = 5.0
@@ -100,6 +100,8 @@ def _send_cmd_wait_ack(
     msg = can.Message(
         arbitration_id=cmd_id,
         is_extended_id=False,
+        is_fd=True,
+        bitrate_switch=False,
         data=payload,
     )
     bus.send(msg)

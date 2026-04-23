@@ -17,7 +17,7 @@ BootSession* get_boot_session(void) {
 }
 
 static bool is_valid_node_id(uint8_t node_id) {
-    return (node_id != 0U) && (node_id <= 0x7FU);
+    return (node_id >= 0x01U);
 }
 
 uint8_t node_id_read(void) {

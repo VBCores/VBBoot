@@ -17,10 +17,7 @@ static uint32_t read_u32_le(const uint8_t* p) {
 }
 
 static size_t fdcan_dlc_to_len(uint32_t dlc) {
-    if (dlc <= 8U) {
-        return (size_t)dlc;
-    }
-    switch (dlc & 0x000F0000U) {
+    switch (dlc & 0xFU) {
     case FDCAN_DLC_BYTES_0: return 0U;
     case FDCAN_DLC_BYTES_1: return 1U;
     case FDCAN_DLC_BYTES_2: return 2U;
@@ -30,6 +27,13 @@ static size_t fdcan_dlc_to_len(uint32_t dlc) {
     case FDCAN_DLC_BYTES_6: return 6U;
     case FDCAN_DLC_BYTES_7: return 7U;
     case FDCAN_DLC_BYTES_8: return 8U;
+    case FDCAN_DLC_BYTES_12: return 12U;
+    case FDCAN_DLC_BYTES_16: return 16U;
+    case FDCAN_DLC_BYTES_20: return 20U;
+    case FDCAN_DLC_BYTES_24: return 24U;
+    case FDCAN_DLC_BYTES_32: return 32U;
+    case FDCAN_DLC_BYTES_48: return 48U;
+    case FDCAN_DLC_BYTES_64: return 64U;
     default:                return 0U;
     }
 }
@@ -112,16 +116,13 @@ static void process_command(const uint8_t* p, size_t payload_size) {
     case BOOT_CMD_DATA: {
         size_t idx;
         size_t remaining;
+        bool ok = true;
         if (payload_size < 2U) {
             boot_send_ack(BL_STATUS_ERR);
             break;
         }
         idx = 1U;
         remaining = payload_size - 1U;
-        if (remaining == 0U) {
-            boot_send_ack(BL_STATUS_ERR);
-            break;
-        }
         while (remaining > 0U) {
             size_t space = 8U - g_data_buf_len;
             size_t take = (remaining < space) ? remaining : space;
@@ -134,6 +135,7 @@ static void process_command(const uint8_t* p, size_t payload_size) {
             remaining -= take;
             if (g_data_buf_len == 8U) {
                 if (!boot_on_data(g_write_offset, g_data_buf, 8U)) {
+                    ok = false;
                     boot_send_ack(BL_STATUS_ERR);
                     break;
                 }
@@ -141,7 +143,9 @@ static void process_command(const uint8_t* p, size_t payload_size) {
                 g_data_buf_len = 0U;
             }
         }
-        boot_send_ack(BL_STATUS_DONE);
+        if (ok) {
+            boot_send_ack(BL_STATUS_DONE);
+        }
         break;
     }
     case BOOT_CMD_DONE:
@@ -176,7 +180,7 @@ static void process_command(const uint8_t* p, size_t payload_size) {
 
 void start_transport(void) {
     g_boot_can_id = (uint32_t)node_id_read();
-    configure_fdcan(&hfdcan1);
+    configure_fdcan(&hfdcan1, g_boot_can_id);
     (void)HAL_FDCAN_Start(&hfdcan1);
 }
 
@@ -187,7 +191,9 @@ void transport_loop(void) {
         if (HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &rxh, g_rx_data) != HAL_OK) {
             break;
         }
-        if ((rxh.IdType != FDCAN_STANDARD_ID) || (rxh.Identifier != boot_can_id())) {
+        if ((rxh.RxFrameType != FDCAN_DATA_FRAME) ||
+            (rxh.IdType != FDCAN_STANDARD_ID) ||
+            (rxh.Identifier != boot_can_id())) {
             continue;
         }
         rx_len = fdcan_dlc_to_len(rxh.DataLength);
@@ -197,4 +203,3 @@ void transport_loop(void) {
         process_command(g_rx_data, rx_len);
     }
 }
-

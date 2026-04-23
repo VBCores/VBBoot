@@ -1,9 +1,9 @@
 #include "app.h"
 
-void configure_fdcan(FDCAN_HandleTypeDef* hfdcan) {
+void configure_fdcan(FDCAN_HandleTypeDef* hfdcan, uint32_t node_id) {
     hfdcan->Instance = FDCAN1;
     hfdcan->Init.ClockDivider = FDCAN_CLOCK_DIV2;
-    hfdcan->Init.FrameFormat = FDCAN_FRAME_CLASSIC;
+    hfdcan->Init.FrameFormat = FDCAN_FRAME_FD_NO_BRS;
     hfdcan->Init.Mode = FDCAN_MODE_NORMAL;
     hfdcan->Init.AutoRetransmission = ENABLE;
     hfdcan->Init.TransmitPause = DISABLE;
@@ -29,7 +29,7 @@ void configure_fdcan(FDCAN_HandleTypeDef* hfdcan) {
     filter.FilterIndex = 0;
     filter.FilterType = FDCAN_FILTER_MASK;
     filter.FilterConfig = FDCAN_FILTER_TO_RXFIFO0;
-    filter.FilterID1 = (uint32_t)node_id_read();
+    filter.FilterID1 = node_id & 0x7FFU;
     filter.FilterID2 = 0x7FFU;
     if (HAL_FDCAN_ConfigFilter(hfdcan, &filter) != HAL_OK) {
         Error_Handler();
@@ -37,8 +37,8 @@ void configure_fdcan(FDCAN_HandleTypeDef* hfdcan) {
 
     if (HAL_FDCAN_ConfigGlobalFilter(
             hfdcan,
-            FDCAN_ACCEPT_IN_RX_FIFO0,
-            FDCAN_ACCEPT_IN_RX_FIFO0,
+            FDCAN_REJECT,
+            FDCAN_REJECT,
             FDCAN_REJECT_REMOTE,
             FDCAN_REJECT_REMOTE) != HAL_OK) {
         Error_Handler();
