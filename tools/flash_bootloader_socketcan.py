@@ -20,6 +20,7 @@ BL_ACK_ID_MASK = 0x400
 CAN_RAW_FILTER = getattr(socket, "CAN_RAW_FILTER", 1)
 CAN_RAW_FD_FRAMES = getattr(socket, "CAN_RAW_FD_FRAMES", 5)
 CANFD_BRS = 0x01
+CANFD_FDF = 0x04  # required to mark frame as CAN FD in SocketCAN
 CAN_FRAME_FORMAT = "=IB3x8s"
 CAN_FRAME_SIZE = struct.calcsize(CAN_FRAME_FORMAT)
 CANFD_FRAME_FORMAT = "=IBBBB64s"
@@ -106,7 +107,7 @@ def load_intel_hex(path: Path) -> bytes:
 def make_canfd_frame(can_id: int, payload: bytes, brs: bool) -> bytes:
     if len(payload) > 64:
         raise ValueError("payload too large for CAN FD")
-    flags = CANFD_BRS if brs else 0
+    flags = CANFD_FDF | (CANFD_BRS if brs else 0)
     padded = payload + bytes(64 - len(payload))
     return struct.pack(CANFD_FRAME_FORMAT, can_id & 0x7FF, len(payload), flags, 0, 0, padded)
 
