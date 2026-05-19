@@ -126,7 +126,7 @@ def recv_canfd_frame(sock: socket.socket, timeout: float) -> tuple[int, bytes]:
 def open_can_socket(channel: str, ack_id: int) -> socket.socket:
     sock = socket.socket(socket.AF_CAN, socket.SOCK_RAW, socket.CAN_RAW)
     sock.setsockopt(socket.SOL_CAN_RAW, CAN_RAW_FD_FRAMES, 1)
-    sock.setsockopt(socket.SOL_CAN_RAW, CAN_RAW_FILTER, struct.pack("=II", ack_id & 0x7FF, 0x7FF))
+    sock.setsockopt(socket.SOL_CAN_RAW, CAN_RAW_FILTER, struct.pack("II", ack_id & 0x7FF, 0x7FF))
     sock.bind((channel,))
     return sock
 

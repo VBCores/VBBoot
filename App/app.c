@@ -377,14 +377,23 @@ bool boot_on_done(void) {
 bool is_application_valid(void) {
     const uint32_t app_sp = *(const uint32_t*)APP_START_ADDR;
     const uint32_t app_reset = *(const uint32_t*)(APP_START_ADDR + 4U);
+    const uint32_t app_nmi = *(const uint32_t*)(APP_START_ADDR + 8U);
+    const uint32_t app_hardfault = *(const uint32_t*)(APP_START_ADDR + 12U);
     const bool stack_ok = (app_sp >= 0x20000000UL) && (app_sp <= 0x20008000UL) && ((app_sp & 0x7UL) == 0U);
     const bool reset_ok = (app_reset >= APP_START_ADDR) && (app_reset < APP_END_ADDR) && ((app_reset & 0x1UL) != 0U);
+    const bool nmi_ok = (app_nmi >= APP_START_ADDR) && (app_nmi < APP_END_ADDR) && ((app_nmi & 0x1UL) != 0U);
+    const bool hardfault_ok = (app_hardfault >= APP_START_ADDR) &&
+                              (app_hardfault < APP_END_ADDR) &&
+                              ((app_hardfault & 0x1UL) != 0U);
 
-    if ((app_sp == 0xFFFFFFFFUL) || (app_reset == 0xFFFFFFFFUL)) {
+    if ((app_sp == 0xFFFFFFFFUL) ||
+        (app_reset == 0xFFFFFFFFUL) ||
+        (app_nmi == 0xFFFFFFFFUL) ||
+        (app_hardfault == 0xFFFFFFFFUL)) {
         return false;
     }
 
-    return stack_ok && reset_ok;
+    return stack_ok && reset_ok && nmi_ok && hardfault_ok;
 }
 
 void app(void) {
