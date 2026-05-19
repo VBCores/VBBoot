@@ -26,11 +26,11 @@ def debug_print(msg: str) -> None:
 
 def test_flash_bootloader_via_can(fw_image: bytes, flashing_params: dict) -> None:
     cmd_id = flashing_params["node_id"]
-    ack_id = flashing_params["node_id"]
+    ack_id = flashing_params["ack_id"]
 
     crc32 = binascii.crc32(fw_image) & 0xFFFFFFFF
     total_size = len(fw_image)
-    data_chunk_size = 63
+    data_chunk_size = flashing_params["data_chunk_size"]
     start_timeout = flashing_params["ack_timeout"]
     if start_timeout < 5.0:
         start_timeout = 5.0
@@ -39,10 +39,19 @@ def test_flash_bootloader_via_can(fw_image: bytes, flashing_params: dict) -> Non
     with can.Bus(
         interface=flashing_params["iface"],
         channel=flashing_params["channel"],
+        fd=flashing_params["use_fd"],
+        can_filters=[
+            {
+                "can_id": ack_id,
+                "can_mask": 0x7FF,
+                "extended": False,
+            }
+        ],
+        receive_own_messages=False,
     ) as bus:
         debug_print(f"Размер прошивки: {total_size} байт")
         debug_print(f"CRC32: 0x{crc32:08X}")
-        debug_print(f"CAN node_id/arbitration_id: 0x{cmd_id:03X}")
+        debug_print(f"CAN cmd_id: 0x{cmd_id:03X}, ack_id: 0x{ack_id:03X}")
         start_payload = (
             bytes([BOOT_CMD_START, 0])
             + struct.pack("<I", total_size)
@@ -55,6 +64,7 @@ def test_flash_bootloader_via_can(fw_image: bytes, flashing_params: dict) -> Non
             ack_id=ack_id,
             payload=start_payload,
             timeout_s=start_timeout,
+            flashing_params=flashing_params,
         )
         start_payload = bytes([BOOT_CMD_START, 1]) + struct.pack("<H", (crc32 >> 16) & 0xFFFF)
         debug_print(f"START[1]: {list(start_payload)}")
@@ -64,6 +74,7 @@ def test_flash_bootloader_via_can(fw_image: bytes, flashing_params: dict) -> Non
             ack_id=ack_id,
             payload=start_payload,
             timeout_s=start_timeout,
+            flashing_params=flashing_params,
         )
 
         offset = 0
@@ -77,6 +88,7 @@ def test_flash_bootloader_via_can(fw_image: bytes, flashing_params: dict) -> Non
                 ack_id=ack_id,
                 payload=data_payload,
                 timeout_s=flashing_params["ack_timeout"],
+                flashing_params=flashing_params,
             )
             offset += len(chunk)
 
@@ -87,6 +99,7 @@ def test_flash_bootloader_via_can(fw_image: bytes, flashing_params: dict) -> Non
             ack_id=ack_id,
             payload=bytes([BOOT_CMD_DONE]),
             timeout_s=flashing_params["ack_timeout"],
+            flashing_params=flashing_params,
         )
 
 
@@ -96,12 +109,13 @@ def _send_cmd_wait_ack(
     ack_id: int,
     payload: bytes,
     timeout_s: float,
+    flashing_params: dict,
 ) -> None:
     msg = can.Message(
         arbitration_id=cmd_id,
         is_extended_id=False,
-        is_fd=True,
-        bitrate_switch=False,
+        is_fd=flashing_params["use_fd"],
+        bitrate_switch=flashing_params["use_brs"],
         data=payload,
     )
     bus.send(msg)

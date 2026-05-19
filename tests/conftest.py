@@ -4,6 +4,8 @@ from pathlib import Path
 
 APP_START_ADDR = 0x08003000
 APP_END_ADDR = 0x08020000
+BL_ACK_ID_MASK = 0x400
+FD_DATA_CHUNK_SIZES = (7, 11, 15, 19, 23, 31, 47, 63)
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -15,6 +17,9 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
     parser.addoption("--can-iface", action="store", default="socketcan", help="python-can interface")
     parser.addoption("--can-channel", action="store", default="can0", help="CAN channel, e.g. can0")
+    parser.addoption("--can-fd", action="store", default="true", help="Use CAN FD frames: true/false")
+    parser.addoption("--can-brs", action="store", default="false", help="Use bitrate switching for CAN FD: true/false")
+    parser.addoption("--data-chunk-size", action="store", default="11", help="Bootloader DATA payload size without command byte")
     parser.addoption("--ack-timeout", action="store", default="0.8", help="ACK timeout in seconds")
     parser.addoption(
         "--node-id",
@@ -41,18 +46,44 @@ def flashing_params(pytestconfig: pytest.Config) -> dict:
     ack_timeout = float(pytestconfig.getoption("--ack-timeout"))
     raw_node_id = str(pytestconfig.getoption("--node-id"))
     node_id = int(raw_node_id, 0)
+    data_chunk_size = int(pytestconfig.getoption("--data-chunk-size"), 0)
+    use_fd = _parse_bool(pytestconfig.getoption("--can-fd"), "--can-fd")
+    use_brs = _parse_bool(pytestconfig.getoption("--can-brs"), "--can-brs")
 
     if ack_timeout <= 0:
         pytest.fail("--ack-timeout must be > 0")
     if node_id <= 0 or node_id > 0xFF:
         pytest.fail("--node-id must be in range 1..0xFF")
+    if use_brs and not use_fd:
+        pytest.fail("--can-brs=true requires --can-fd=true")
+    if data_chunk_size <= 0 or data_chunk_size > (63 if use_fd else 7):
+        pytest.fail("--data-chunk-size is out of range for the selected CAN mode")
+    if use_fd and data_chunk_size not in FD_DATA_CHUNK_SIZES:
+        pytest.fail(
+            "--data-chunk-size for CAN FD must be one of "
+            + ", ".join(str(size) for size in FD_DATA_CHUNK_SIZES)
+            + " so cmd+payload matches a valid FD DLC without implicit padding"
+        )
 
     return {
         "iface": pytestconfig.getoption("--can-iface"),
         "channel": pytestconfig.getoption("--can-channel"),
         "ack_timeout": ack_timeout,
         "node_id": node_id,
+        "ack_id": (node_id | BL_ACK_ID_MASK) & 0x7FF,
+        "use_fd": use_fd,
+        "use_brs": use_brs,
+        "data_chunk_size": data_chunk_size,
     }
+
+
+def _parse_bool(raw_value: str, option_name: str) -> bool:
+    value = str(raw_value).strip().lower()
+    if value in ("1", "true", "yes", "on"):
+        return True
+    if value in ("0", "false", "no", "off"):
+        return False
+    pytest.fail(f"{option_name} must be true/false")
 
 
 def _load_intel_hex(path: Path) -> bytes:

@@ -1,24 +1,24 @@
 #include "app.h"
 
-void configure_fdcan(FDCAN_HandleTypeDef* hfdcan, uint32_t node_id) {
+void configure_fdcan(FDCAN_HandleTypeDef* hfdcan, const BootTransportConfig* config) {
     hfdcan->Instance = FDCAN1;
     hfdcan->Init.ClockDivider = FDCAN_CLOCK_DIV2;
-    hfdcan->Init.FrameFormat = FDCAN_FRAME_FD_NO_BRS;
+    hfdcan->Init.FrameFormat = config->bitrate_switch ? FDCAN_FRAME_FD_BRS : FDCAN_FRAME_FD_NO_BRS;
     hfdcan->Init.Mode = FDCAN_MODE_NORMAL;
     hfdcan->Init.AutoRetransmission = ENABLE;
     hfdcan->Init.TransmitPause = DISABLE;
     hfdcan->Init.ProtocolException = DISABLE;
-    hfdcan->Init.NominalSyncJumpWidth = 24;
-    hfdcan->Init.NominalTimeSeg1 = 55;
-    hfdcan->Init.NominalTimeSeg2 = 24;
+    hfdcan->Init.NominalSyncJumpWidth = 20;
+    hfdcan->Init.NominalTimeSeg1 = 59;
+    hfdcan->Init.NominalTimeSeg2 = 20;
     hfdcan->Init.DataSyncJumpWidth = 4;
     hfdcan->Init.DataTimeSeg1 = 5;
     hfdcan->Init.DataTimeSeg2 = 4;
     hfdcan->Init.StdFiltersNbr = 1;
     hfdcan->Init.ExtFiltersNbr = 0;
     hfdcan->Init.TxFifoQueueMode = FDCAN_TX_FIFO_OPERATION;
-    hfdcan->Init.NominalPrescaler = 1;
-    hfdcan->Init.DataPrescaler = 1;
+    hfdcan->Init.NominalPrescaler = config->nominal_prescaler;
+    hfdcan->Init.DataPrescaler = config->data_prescaler;
 
     if (HAL_FDCAN_Init(hfdcan) != HAL_OK) {
         Error_Handler();
@@ -29,7 +29,7 @@ void configure_fdcan(FDCAN_HandleTypeDef* hfdcan, uint32_t node_id) {
     filter.FilterIndex = 0;
     filter.FilterType = FDCAN_FILTER_MASK;
     filter.FilterConfig = FDCAN_FILTER_TO_RXFIFO0;
-    filter.FilterID1 = node_id & 0x7FFU;
+    filter.FilterID1 = config->can_id & 0x7FFU;
     filter.FilterID2 = 0x7FFU;
     if (HAL_FDCAN_ConfigFilter(hfdcan, &filter) != HAL_OK) {
         Error_Handler();

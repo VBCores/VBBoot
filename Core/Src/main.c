@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "app.h"
 #include "gpio.h"
 #include "i2c.h"
 
@@ -89,6 +90,7 @@ int main(void)
   MX_GPIO_Init();
   MX_I2C2_Init();
   /* USER CODE BEGIN 2 */
+  boot_diag_init();
   app();
   /* USER CODE END 2 */
 

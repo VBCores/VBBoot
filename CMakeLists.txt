@@ -68,6 +68,11 @@ target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE
 if (NOT CMAKE_BUILD_TYPE MATCHES Debug)
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 endif()
+set_source_files_properties(App/bootloader_runtime.c PROPERTIES COMPILE_OPTIONS "-fno-lto")
+# communications.c accesses FDCAN message RAM (hardware-written memory).
+# LTO treats message RAM as always-zero (only CPU zeroes it; hardware writes are invisible),
+# causing Identifier checks and boot_process_command to be eliminated as dead code.
+set_source_files_properties(App/communications.c PROPERTIES COMPILE_OPTIONS "-fno-lto")
 target_link_options(${CMAKE_PROJECT_NAME} PRIVATE
     $<$<CONFIG:Release>:-flto>
     $<$<CONFIG:RelWithDebInfo>:-flto>
