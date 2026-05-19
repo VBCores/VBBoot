@@ -2,13 +2,13 @@ from pathlib import Path
 import re
 
 
-def test_default_node_id_is_controller_6() -> None:
+def test_default_node_id_avoids_joint_collision() -> None:
     header = Path(__file__).resolve().parents[1] / "App" / "app.h"
     text = header.read_text(encoding="utf-8")
     match = re.search(r"#define\s+DEFAULT_NODE_ID\s+(0x[0-9A-Fa-f]+|\d+)U?", text)
 
     assert match is not None
-    assert int(match.group(1), 0) == 0x06
+    assert int(match.group(1), 0) == 0x444
 
 
 def test_nominal_can_sample_point_matches_can0() -> None:

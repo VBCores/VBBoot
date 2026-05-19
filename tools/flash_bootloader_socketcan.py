@@ -31,7 +31,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Flash VBBoot target over raw SocketCAN CAN FD")
     parser.add_argument("--hex", required=True, help="Path to Intel HEX firmware file")
     parser.add_argument("--channel", default="can0", help="SocketCAN interface name")
-    parser.add_argument("--node-id", default="0x69", help="Bootloader command CAN ID")
+    parser.add_argument("--node-id", default="0x444", help="Bootloader command CAN ID")
     parser.add_argument("--ack-timeout", type=float, default=1.5, help="ACK timeout in seconds")
     parser.add_argument(
         "--data-chunk-size",

@@ -298,7 +298,7 @@ static bool is_valid_node_id(uint8_t node_id) {
     return (node_id >= 0x01U);
 }
 
-uint8_t node_id_read(void) {
+uint32_t node_id_read(void) {
     NodeIdRecord rec = {0};
     HAL_StatusTypeDef status;
 

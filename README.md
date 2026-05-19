@@ -43,7 +43,7 @@ typedef struct __attribute__((packed)) {
 } NodeIdRecord;
 ```
 
-If EEPROM is not ready, read fails, `magic` is invalid, or `node_id` is out of range, bootloader uses `DEFAULT_NODE_ID` (`0x69`).
+If EEPROM is not ready, read fails, `magic` is invalid, or `node_id` is out of range, bootloader uses `DEFAULT_NODE_ID` (`0x444`).
 
 ## Build
 
@@ -84,5 +84,5 @@ pytest tests/test_bootloader_fdcan.py \
   --can-iface=socketcan \
   --can-channel=can0 \
   --ack-timeout=0.8 \
-  --node-id=0x69
+  --node-id=0x444
 ```

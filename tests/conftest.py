@@ -24,8 +24,8 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--node-id",
         action="store",
-        default="0x69",
-        help="Bootloader CAN node ID in range 0x01..0xFF (dec or hex, e.g. 105 or 0x69)",
+        default="0x444",
+        help="Bootloader CAN node ID in range 0x01..0x7FF (dec or hex, e.g. 5 or 0x444)",
     )
 
 
@@ -52,8 +52,8 @@ def flashing_params(pytestconfig: pytest.Config) -> dict:
 
     if ack_timeout <= 0:
         pytest.fail("--ack-timeout must be > 0")
-    if node_id <= 0 or node_id > 0xFF:
-        pytest.fail("--node-id must be in range 1..0xFF")
+    if node_id <= 0 or node_id > 0x7FF:
+        pytest.fail("--node-id must be in range 1..0x7FF")
     if use_brs and not use_fd:
         pytest.fail("--can-brs=true requires --can-fd=true")
     if data_chunk_size <= 0 or data_chunk_size > (63 if use_fd else 7):

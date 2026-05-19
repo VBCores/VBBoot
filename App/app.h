@@ -7,8 +7,8 @@
 #include "main.h"
 #include "stm32g4xx_hal.h"
 
-#define DEFAULT_NODE_ID 0x06U
-#define BL_CAN_STD_ID 0x06U
+#define DEFAULT_NODE_ID 0x444U
+#define BL_CAN_STD_ID 0x444U
 #define BL_ACK_ID_MASK 0x400U
 
 #define APP_START_ADDR 0x08003000UL
@@ -62,7 +62,7 @@ typedef struct {
 extern FDCAN_HandleTypeDef hfdcan1;
 
 BootSession* get_boot_session(void);
-uint8_t node_id_read(void);
+uint32_t node_id_read(void);
 bool bootloader_start_requested(void);
 void transport_config_load(void);
 const BootTransportConfig* transport_config_get(void);
@@ -91,4 +91,3 @@ void boot_process_command(const uint8_t* p, size_t payload_size, void (*send_sta
 void boot_jump_to_application(void);
 
 bool is_application_valid(void);
-
