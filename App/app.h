@@ -11,19 +11,52 @@
 #define BL_CAN_STD_ID 0x444U
 #define BL_ACK_ID_MASK 0x400U
 
+#if defined(BOOTLOADER_FDCAN_ID_FORMAT_EXTENDED)
+#define BOOTLOADER_FDCAN_ID_TYPE FDCAN_EXTENDED_ID
+#define BOOTLOADER_FDCAN_ID_MASK 0x1FFFFFFFUL
+#define BOOTLOADER_FDCAN_STD_FILTERS 0U
+#define BOOTLOADER_FDCAN_EXT_FILTERS 1U
+#else
+#define BOOTLOADER_FDCAN_ID_TYPE FDCAN_STANDARD_ID
+#define BOOTLOADER_FDCAN_ID_MASK 0x7FFUL
+#define BOOTLOADER_FDCAN_STD_FILTERS 1U
+#define BOOTLOADER_FDCAN_EXT_FILTERS 0U
+#endif
+
 #define APP_START_ADDR 0x08003000UL
 #define APP_END_ADDR 0x08020000UL
 #define BOOT_FLASH_PAGE_SIZE 0x800UL
-#define NODE_ID_EEPROM_I2C_DEV_ADDR 0x50U
-#define NODE_ID_EEPROM_MEM_ADDR 0x0000U
-#define NODE_ID_MAGIC 0x424C4E49UL
+#define CONFIG_EEPROM_I2C_DEV_ADDR 0x50U
+#define CONFIG_EEPROM_MEM_ADDR 0x0000U
+#define VBDRIVE_CONFIG_TYPE_ID 0x44AAABFFUL
 #define BOOT_REQUEST_MAGIC 0xB00710ADUL
 
+// Ensure that this matches `libvoltbro/voltbro/config/serial/serial.h` BaseConfigData EXACTLY
 typedef struct __attribute__((packed)) {
-    uint32_t magic;
+    uint8_t was_configured;
     uint8_t node_id;
-    uint8_t reserved[3];
-} NodeIdRecord;
+    uint8_t fdcan_nominal_baud;
+    uint8_t fdcan_data_baud;
+    uint32_t type_id;
+} BootEepromConfigPrefix;
+_Static_assert(sizeof(BootEepromConfigPrefix) == 8U, "Boot EEPROM config prefix must match BaseConfigData");
+
+// Ensure that this matches `libvoltbro/voltbro/config/serial/serial.h` FDCANNominalBaud EXACTLY
+typedef enum {
+    FDCAN_NOMINAL_KHZ62 = 0,
+    FDCAN_NOMINAL_KHZ125 = 1,
+    FDCAN_NOMINAL_KHZ250 = 2,
+    FDCAN_NOMINAL_KHZ500 = 3,
+    FDCAN_NOMINAL_KHZ1000 = 4
+} BootFdcanNominalBaud;
+
+// Ensure that this matches `libvoltbro/voltbro/config/serial/serial.h` FDCANDataBaud EXACTLY
+typedef enum {
+    FDCAN_DATA_KHZ1000 = 0,
+    FDCAN_DATA_KHZ2000 = 1,
+    FDCAN_DATA_KHZ4000 = 2,
+    FDCAN_DATA_KHZ8000 = 3
+} BootFdcanDataBaud;
 
 #define BL_STATUS_DONE 0xD0U
 #define BL_STATUS_ERR  0xE0U
@@ -62,7 +95,6 @@ typedef struct {
 extern FDCAN_HandleTypeDef hfdcan1;
 
 BootSession* get_boot_session(void);
-uint32_t node_id_read(void);
 bool bootloader_start_requested(void);
 void transport_config_load(void);
 const BootTransportConfig* transport_config_get(void);

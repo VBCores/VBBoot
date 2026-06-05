@@ -55,12 +55,12 @@ void boot_send_ack(uint8_t status) {
     HAL_StatusTypeDef tx_status;
     payload[0] = status;
     txh.Identifier = boot_ack_can_id();
-    txh.IdType = FDCAN_STANDARD_ID;
+    txh.IdType = BOOTLOADER_FDCAN_ID_TYPE;
     txh.TxFrameType = FDCAN_DATA_FRAME;
     txh.DataLength = fdcan_len_to_dlc(1U);
     txh.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
-    txh.BitRateSwitch = FDCAN_BRS_OFF;
-    txh.FDFormat = FDCAN_CLASSIC_CAN;
+    txh.BitRateSwitch = FDCAN_BRS_ON;
+    txh.FDFormat = FDCAN_FD_CAN;
     txh.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
     txh.MessageMarker = 0U;
     tx_status = HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &txh, payload);
@@ -278,7 +278,7 @@ void transport_loop(void) {
             break;
         }
         if ((rxh.RxFrameType != FDCAN_DATA_FRAME) ||
-            (rxh.IdType != FDCAN_STANDARD_ID) ||
+            (rxh.IdType != BOOTLOADER_FDCAN_ID_TYPE) ||
             (rxh.Identifier != boot_command_can_id())) {
             continue;
         }

@@ -257,29 +257,138 @@ static bool boot_request_read(BootTransportConfig* config, bool clear_request) {
     return present;
 }
 
-static bool transport_config_is_valid(const BootTransportConfig* config) {
-    return (config->can_id >= 1U) &&
-           (config->can_id <= 0x7FFU) &&
-           (config->nominal_prescaler > 0U) &&
-           (config->data_prescaler > 0U) &&
-           (config->fd_mode || (!config->bitrate_switch));
+static void transport_config_force_fd_brs(BootTransportConfig* config) {
+    config->fd_mode = true;
+    config->bitrate_switch = true;
 }
 
+static bool is_valid_nominal_prescaler(uint8_t prescaler) {
+    return (prescaler == 1U) ||
+           (prescaler == 2U) ||
+           (prescaler == 4U) ||
+           (prescaler == 8U) ||
+           (prescaler == 16U);
+}
+
+static bool is_valid_data_prescaler(uint8_t prescaler) {
+    return (prescaler == 1U) ||
+           (prescaler == 2U) ||
+           (prescaler == 4U) ||
+           (prescaler == 8U);
+}
+
+static bool transport_config_is_valid(const BootTransportConfig* config) {
+    return (config->can_id >= 1U) &&
+           (config->can_id <= BOOTLOADER_FDCAN_ID_MASK) &&
+           is_valid_nominal_prescaler(config->nominal_prescaler) &&
+           is_valid_data_prescaler(config->data_prescaler);
+}
+
+#if defined(BOOTLOADER_USE_EEPROM_CONFIG)
+static bool is_valid_config_node_id(uint8_t node_id) {
+    return (node_id >= 0x01U) && (node_id <= 0x7FU);
+}
+
+static bool nominal_baud_to_prescaler(uint8_t baud, uint8_t* prescaler) {
+    switch ((BootFdcanNominalBaud)baud) {
+        case FDCAN_NOMINAL_KHZ62:
+            *prescaler = 16U;
+            return true;
+        case FDCAN_NOMINAL_KHZ125:
+            *prescaler = 8U;
+            return true;
+        case FDCAN_NOMINAL_KHZ250:
+            *prescaler = 4U;
+            return true;
+        case FDCAN_NOMINAL_KHZ500:
+            *prescaler = 2U;
+            return true;
+        case FDCAN_NOMINAL_KHZ1000:
+            *prescaler = 1U;
+            return true;
+    }
+    return false;
+}
+
+static bool data_baud_to_prescaler(uint8_t baud, uint8_t* prescaler) {
+    switch ((BootFdcanDataBaud)baud) {
+        case FDCAN_DATA_KHZ1000:
+            *prescaler = 8U;
+            return true;
+        case FDCAN_DATA_KHZ2000:
+            *prescaler = 4U;
+            return true;
+        case FDCAN_DATA_KHZ4000:
+            *prescaler = 2U;
+            return true;
+        case FDCAN_DATA_KHZ8000:
+            *prescaler = 1U;
+            return true;
+    }
+    return false;
+}
+
+static bool eeprom_config_read(BootEepromConfigPrefix* config) {
+    if (HAL_I2C_IsDeviceReady(&hi2c2, CONFIG_EEPROM_I2C_DEV_ADDR << 1U, 2U, 100U) != HAL_OK) {
+        return false;
+    }
+
+    return HAL_I2C_Mem_Read(
+        &hi2c2,
+        CONFIG_EEPROM_I2C_DEV_ADDR << 1U,
+        CONFIG_EEPROM_MEM_ADDR,
+        I2C_MEMADD_SIZE_16BIT,
+        (uint8_t*)config,
+        (uint16_t)sizeof(*config),
+        100U
+    ) == HAL_OK;
+}
+
+static bool transport_config_load_eeprom(BootTransportConfig* config) {
+    BootEepromConfigPrefix stored = {0};
+    uint8_t nominal_prescaler = 0U;
+    uint8_t data_prescaler = 0U;
+
+    if (!eeprom_config_read(&stored)) {
+        return false;
+    }
+    if ((stored.type_id != VBDRIVE_CONFIG_TYPE_ID) || !is_valid_config_node_id(stored.node_id)) {
+        return false;
+    }
+    if (!nominal_baud_to_prescaler(stored.fdcan_nominal_baud, &nominal_prescaler) ||
+        !data_baud_to_prescaler(stored.fdcan_data_baud, &data_prescaler)) {
+        return false;
+    }
+
+    config->can_id = stored.node_id;
+    config->nominal_prescaler = nominal_prescaler;
+    config->data_prescaler = data_prescaler;
+    transport_config_force_fd_brs(config);
+    return true;
+}
+#else
+static bool transport_config_load_eeprom(BootTransportConfig* config) {
+    (void)config;
+    return false;
+}
+#endif
+
 static void transport_config_load_defaults(void) {
-    g_transport_config.can_id = (uint32_t)node_id_read();
+    g_transport_config.can_id = DEFAULT_NODE_ID;
     g_transport_config.nominal_prescaler = 1U;
     g_transport_config.data_prescaler = 1U;
-    g_transport_config.fd_mode = true;
-    g_transport_config.bitrate_switch = true;
+    transport_config_force_fd_brs(&g_transport_config);
 }
 
 void transport_config_load(void) {
     BootTransportConfig requested = {0};
 
     transport_config_load_defaults();
+    (void)transport_config_load_eeprom(&g_transport_config);
     if (boot_request_read(&requested, true) && transport_config_is_valid(&requested)) {
         g_transport_config = requested;
     }
+    transport_config_force_fd_brs(&g_transport_config);
 }
 
 const BootTransportConfig* transport_config_get(void) {
@@ -287,39 +396,11 @@ const BootTransportConfig* transport_config_get(void) {
 }
 
 uint32_t boot_command_can_id(void) {
-    return g_transport_config.can_id & 0x7FFU;
+    return g_transport_config.can_id & BOOTLOADER_FDCAN_ID_MASK;
 }
 
 uint32_t boot_ack_can_id(void) {
-    return (boot_command_can_id() | BL_ACK_ID_MASK) & 0x7FFU;
-}
-
-static bool is_valid_node_id(uint8_t node_id) {
-    return (node_id >= 0x01U);
-}
-
-uint32_t node_id_read(void) {
-    NodeIdRecord rec = {0};
-    HAL_StatusTypeDef status;
-
-    if (HAL_I2C_IsDeviceReady(&hi2c2, NODE_ID_EEPROM_I2C_DEV_ADDR << 1U, 2U, 100U) != HAL_OK) {
-        return DEFAULT_NODE_ID;
-    }
-
-    status = HAL_I2C_Mem_Read(
-        &hi2c2,
-        NODE_ID_EEPROM_I2C_DEV_ADDR << 1U,
-        NODE_ID_EEPROM_MEM_ADDR,
-        I2C_MEMADD_SIZE_16BIT,
-        (uint8_t*)&rec,
-        (uint16_t)sizeof(rec),
-        100U
-    );
-
-    if ((status == HAL_OK) && (rec.magic == NODE_ID_MAGIC) && is_valid_node_id(rec.node_id)) {
-        return rec.node_id;
-    }
-    return DEFAULT_NODE_ID;
+    return (boot_command_can_id() | BL_ACK_ID_MASK) & BOOTLOADER_FDCAN_ID_MASK;
 }
 
 bool bootloader_start_requested(void) {
