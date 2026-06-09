@@ -8,6 +8,13 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Release")
 endif()
 
+set(BOOTLOADER_FDCAN_ID_FORMAT "standard" CACHE STRING "Bootloader FDCAN ID format: standard or extended")
+set_property(CACHE BOOTLOADER_FDCAN_ID_FORMAT PROPERTY STRINGS standard extended)
+if(NOT BOOTLOADER_FDCAN_ID_FORMAT MATCHES "^(standard|extended)$")
+    message(FATAL_ERROR "BOOTLOADER_FDCAN_ID_FORMAT must be 'standard' or 'extended'")
+endif()
+option(BOOTLOADER_USE_EEPROM_CONFIG "Load bootloader CAN node id and rates from VBDrive EEPROM config" ON)
+
 set(CMAKE_PROJECT_NAME VBBoot)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
@@ -53,6 +60,12 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     -DUSE_HAL_DRIVER
     -DSTM32G4
 )
+if(BOOTLOADER_FDCAN_ID_FORMAT STREQUAL "extended")
+    target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE -DBOOTLOADER_FDCAN_ID_FORMAT_EXTENDED)
+endif()
+if(BOOTLOADER_USE_EEPROM_CONFIG)
+    target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE -DBOOTLOADER_USE_EEPROM_CONFIG=1)
+endif()
 
 add_compile_options(
     -mfloat-abi=hard   # Use hardware FPU
