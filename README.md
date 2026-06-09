@@ -4,13 +4,14 @@
 
 The bootloader:
 - checks application validity at startup and jumps to app if valid;
-- otherwise stays in boot mode and accepts firmware frames over **Classic CAN 2.0** (`FDCAN_FRAME_CLASSIC`, no FD/BRS);
+- otherwise stays in boot mode and accepts firmware frames over CAN FD with BRS (`FDCAN_FRAME_FD_BRS`);
 - writes firmware to flash at `0x08003000..0x0801FFFF`.
 
 ## Boot Transport (CAN)
 
-- CAN ID is `node_id` (standard 11-bit identifier).
-- RX/TX use the same CAN ID.
+- CAN ID is the resolved bootloader command ID.
+- CAN ID format is selected at build time with `BOOTLOADER_FDCAN_ID_FORMAT=standard|extended`.
+- ACK ID is `command_id | 0x400`, masked to the selected identifier width.
 - ACK payload is 1 byte: `0xD0` (done) or `0xE0` (error).
 
 ### Supported commands
@@ -26,24 +27,59 @@ The bootloader:
 
 `BOOT_CMD_GET_ID` enum value exists in code (`0x05`) but is not handled in transport state machine.
 
-## node_id source (EEPROM)
+## Transport Config Sources
 
-`node_id` is read from external I2C EEPROM (same idea as VBDrive config backend):
+VBBoot resolves CAN transport config in this order:
+
+1. Backup register transport config, if present and valid.
+2. EEPROM config, if `BOOTLOADER_USE_EEPROM_CONFIG=ON`, EEPROM is readable, `type_id` matches and fields are valid.
+3. Defaults.
+
+The backup register transport config is kept for future/debug flows. If it is present and valid, it overrides EEPROM.
+
+### EEPROM Config
+
+When compiled with `BOOTLOADER_USE_EEPROM_CONFIG=ON`, VBBoot reads the EEPROM config prefix from external I2C EEPROM:
 
 - I2C bus: `I2C2` (`hi2c2`)
 - EEPROM device address: `0x50`
 - EEPROM offset: `0x0000`
-- Record format:
+- Required `type_id`: `0x44AAABFF`
+- Prefix format is same as libvoltbro BaseConfig:
 
 ```c
 typedef struct __attribute__((packed)) {
-    uint32_t magic;      // must be NODE_ID_MAGIC (0x424C4E49)
-    uint8_t node_id;     // valid range: 1..127
-    uint8_t reserved[3];
-} NodeIdRecord;
+    uint8_t was_configured;
+    uint8_t node_id;
+    uint8_t fdcan_nominal_baud;
+    uint8_t fdcan_data_baud;
+    uint32_t type_id;
+} BootEepromConfigPrefix;
 ```
 
-If EEPROM is not ready, read fails, `magic` is invalid, or `node_id` is out of range, bootloader uses `DEFAULT_NODE_ID` (`0x444`).
+Supported nominal baud enum values map to prescalers as in libvoltbro:
+
+- `0`: 62.5 kbit/s -> `16`
+- `1`: 125 kbit/s -> `8`
+- `2`: 250 kbit/s -> `4`
+- `3`: 500 kbit/s -> `2`
+- `4`: 1000 kbit/s -> `1`
+
+Supported data baud enum values:
+
+- `0`: 1000 kbit/s -> `8`
+- `1`: 2000 kbit/s -> `4`
+- `2`: 4000 kbit/s -> `2`
+- `3`: 8000 kbit/s -> `1`
+
+If EEPROM support is disabled, EEPROM is unavailable, read fails, `type_id` mismatches, `node_id` is out of range, or baud enum values are invalid, VBBoot falls back to defaults.
+
+Defaults:
+
+- CAN command ID: `DEFAULT_NODE_ID` (`0x444`)
+- nominal prescaler: `1`
+- data prescaler: `1`
+- frame format: always `FDCAN_FRAME_FD_BRS`
 
 ## Build
 
@@ -58,7 +94,9 @@ Or explicitly:
 
 ```bash
 cmake -S . -B build/RelWithDebInfo -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-  -DCMAKE_TOOLCHAIN_FILE=cmake/gcc-arm-none-eabi.cmake
+  -DCMAKE_TOOLCHAIN_FILE=cmake/gcc-arm-none-eabi.cmake \
+  -DBOOTLOADER_FDCAN_ID_FORMAT=extended \
+  -DBOOTLOADER_USE_EEPROM_CONFIG=ON
 cmake --build build/RelWithDebInfo
 ```
 
