@@ -97,7 +97,27 @@ cmake -S . -B build/RelWithDebInfo -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   -DCMAKE_TOOLCHAIN_FILE=cmake/gcc-arm-none-eabi.cmake \
   -DBOOTLOADER_FDCAN_ID_FORMAT=extended \
   -DBOOTLOADER_USE_EEPROM_CONFIG=ON
-cmake --build build/RelWithDebInfo
+    cmake --build build/RelWithDebInfo
+
+### STM32G474 target
+
+The default target remains STM32G431. Integrators can select STM32G474 without
+changing the VBDrive build by passing target-specific cache values:
+
+```bash
+cmake -S . -B build/g474 \
+  -DCMAKE_TOOLCHAIN_FILE=cmake/gcc-arm-none-eabi.cmake \
+  -DBOOTLOADER_MCU=STM32G474xx \
+  -DBOOTLOADER_STARTUP_FILE=/path/to/startup_stm32g474xx.s \
+  -DBOOTLOADER_APP_END=0x08080000UL \
+  -DBOOTLOADER_RAM_END=0x20020000UL \
+  -DBOOTLOADER_FDCAN_CLOCK_SOURCE=PLL \
+  -DBOOTLOADER_USE_EEPROM_CONFIG=OFF
+```
+
+The G474 selection generates a 512 KiB/128 KiB bootloader linker layout while
+the default G431 layout, clocks, startup file, and validation bounds remain
+unchanged.
 ```
 
 Post-build artifacts:
@@ -122,5 +142,16 @@ pytest tests/test_bootloader_fdcan.py \
   --can-iface=socketcan \
   --can-channel=can0 \
   --ack-timeout=0.8 \
-  --node-id=0x444
+       --node-id=0x444
+
+The SocketCAN uploader uses a 47-byte DATA chunk by default (one command byte
+plus 47 firmware bytes in a 48-byte CAN FD frame). Other supported chunks,
+including the maximum 63-byte DATA payload, can
+be selected with `--data-chunk-size` when the complete transport path supports
+64-byte CAN FD payloads reliably.
+
+Streaming DATA without per-frame ACKs is the default. START and DONE remain
+acknowledged, and DONE validates the complete size and CRC32. The default 3 ms
+inter-frame delay prevents receive FIFO overflow while internal flash is being
+programmed. Use `--ack-each-frame` for the legacy confirmed transfer mode.
 ```

@@ -4,7 +4,6 @@ enable_language(C ASM)
 # STM32CubeMX generated symbols (macros)
 set(MX_Defines_Syms
 	USE_HAL_DRIVER
-	STM32G431xx
     $<$<CONFIG:Debug>:DEBUG>
 )
 
@@ -24,7 +23,7 @@ set(MX_Application_Src
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/i2c.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/stm32g4xx_it.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/stm32g4xx_hal_msp.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../startup_stm32g431xx.s
+    ${BOOTLOADER_STARTUP_FILE}
 )
 
 # STM32 HAL/LL Drivers

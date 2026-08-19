@@ -84,7 +84,7 @@ void boot_process_command(const uint8_t* p, size_t payload_size, void (*send_sta
     }
 
     cmd = p[0];
-    if ((cmd != BOOT_CMD_DATA) || (payload_size < 16U)) {
+    if (((cmd != BOOT_CMD_DATA) && (cmd != BOOT_CMD_DATA_STREAM)) || (payload_size < 16U)) {
         boot_diag_note_rx(cmd, (uint8_t)payload_size, g_write_offset, g_data_buf_len);
     }
     switch ((BootCommand)cmd) {
@@ -127,7 +127,9 @@ void boot_process_command(const uint8_t* p, size_t payload_size, void (*send_sta
         send_status(BL_STATUS_ERR);
         break;
     }
-    case BOOT_CMD_DATA: {
+    case BOOT_CMD_DATA:
+    case BOOT_CMD_DATA_STREAM: {
+        const bool acknowledge_success = (cmd == BOOT_CMD_DATA);
         size_t idx;
         size_t remaining;
         bool ok = true;
@@ -166,7 +168,7 @@ void boot_process_command(const uint8_t* p, size_t payload_size, void (*send_sta
                 g_data_buf_len = 0U;
             }
         }
-        if (ok) {
+        if (ok && acknowledge_success) {
             send_status(BL_STATUS_DONE);
         }
         break;

@@ -8,7 +8,11 @@ void HAL_FDCAN_MspInit(FDCAN_HandleTypeDef* fdcanHandle) {
 
     if (fdcanHandle->Instance == FDCAN1) {
         PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_FDCAN;
+#if defined(BOOTLOADER_FDCAN_CLOCK_PLL)
+        PeriphClkInit.FdcanClockSelection = RCC_FDCANCLKSOURCE_PLL;
+#else
         PeriphClkInit.FdcanClockSelection = RCC_FDCANCLKSOURCE_PCLK1;
+#endif
         if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK) {
             Error_Handler();
         }

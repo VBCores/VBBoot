@@ -460,7 +460,7 @@ bool is_application_valid(void) {
     const uint32_t app_reset = *(const uint32_t*)(APP_START_ADDR + 4U);
     const uint32_t app_nmi = *(const uint32_t*)(APP_START_ADDR + 8U);
     const uint32_t app_hardfault = *(const uint32_t*)(APP_START_ADDR + 12U);
-    const bool stack_ok = (app_sp >= 0x20000000UL) && (app_sp <= 0x20008000UL) && ((app_sp & 0x7UL) == 0U);
+    const bool stack_ok = (app_sp >= 0x20000000UL) && (app_sp <= APP_RAM_END_ADDR) && ((app_sp & 0x7UL) == 0U);
     const bool reset_ok = (app_reset >= APP_START_ADDR) && (app_reset < APP_END_ADDR) && ((app_reset & 0x1UL) != 0U);
     const bool nmi_ok = (app_nmi >= APP_START_ADDR) && (app_nmi < APP_END_ADDR) && ((app_nmi & 0x1UL) != 0U);
     const bool hardfault_ok = (app_hardfault >= APP_START_ADDR) &&

@@ -10,10 +10,11 @@ from pathlib import Path
 
 
 APP_START_ADDR = 0x08003000
-APP_END_ADDR = 0x08020000
+DEFAULT_APP_END_ADDR = 0x08020000
 BOOT_CMD_START = 1
 BOOT_CMD_DATA = 2
 BOOT_CMD_DONE = 3
+BOOT_CMD_DATA_STREAM = 4
 BL_STATUS_DONE = 0xD0
 BL_STATUS_ERR = 0xE0
 BL_ACK_ID_MASK = 0x400
@@ -37,6 +38,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--channel", default="can0", help="SocketCAN interface name")
     parser.add_argument("--node-id", default="0x444", help="Bootloader command CAN ID")
     parser.add_argument(
+        "--app-end",
+        type=lambda value: int(value, 0),
+        default=DEFAULT_APP_END_ADDR,
+        help="Exclusive application flash end address",
+    )
+    parser.add_argument(
         "--id-format",
         choices=("standard", "extended"),
         default="standard",
@@ -46,21 +53,26 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--data-chunk-size",
         type=int,
-        default=11,
+        default=47,
         help="DATA bytes per command frame, excluding the command byte",
     )
     parser.add_argument(
         "--inter-frame-delay-ms",
         type=float,
-        default=0.0,
+        default=3.0,
         help="Delay after each successful ACK before sending the next frame",
     )
     parser.add_argument("--start-retries", type=int, default=8, help="Retries for the START handshake")
+    parser.add_argument(
+        "--ack-each-frame",
+        action="store_true",
+        help="Use legacy DATA frames with one ACK per frame instead of streaming DATA",
+    )
     parser.add_argument("--brs", action="store_true", help="Enable CAN FD bitrate switching")
     return parser.parse_args()
 
 
-def load_intel_hex(path: Path) -> bytes:
+def load_intel_hex(path: Path, app_end_addr: int = DEFAULT_APP_END_ADDR) -> bytes:
     if not path.exists():
         raise FileNotFoundError(path)
 
@@ -93,7 +105,7 @@ def load_intel_hex(path: Path) -> bytes:
             abs_addr = addr_base + offset
             for i, value in enumerate(payload):
                 current = abs_addr + i
-                if APP_START_ADDR <= current < APP_END_ADDR:
+                if APP_START_ADDR <= current < app_end_addr:
                     data_map[current] = value
         elif rec_type == 0x01:
             break
@@ -195,7 +207,7 @@ def main() -> int:
             + " so cmd+data matches a valid CAN FD DLC exactly"
         )
 
-    image = load_intel_hex(Path(args.hex))
+    image = load_intel_hex(Path(args.hex), args.app_end)
     crc32 = binascii.crc32(image) & 0xFFFFFFFF
     total_size = len(image)
 
@@ -255,16 +267,15 @@ def main() -> int:
         frame_index = 0
         while offset < total_size:
             chunk = image[offset : offset + args.data_chunk_size]
-            send_wait_ack(
-                sock,
-                command_id,
-                ack_id,
-                bytes([BOOT_CMD_DATA]) + chunk,
-                args.ack_timeout,
-                args.brs,
-                extended,
-                inter_frame_delay_s,
-            )
+            command = BOOT_CMD_DATA if args.ack_each_frame else BOOT_CMD_DATA_STREAM
+            payload = bytes([command]) + chunk
+            if args.ack_each_frame:
+                send_wait_ack(sock, command_id, ack_id, payload, args.ack_timeout,
+                              args.brs, extended, inter_frame_delay_s)
+            else:
+                sock.send(make_canfd_frame(command_id, payload, args.brs, extended))
+                if inter_frame_delay_s > 0.0:
+                    time.sleep(inter_frame_delay_s)
             offset += len(chunk)
             frame_index += 1
             if (frame_index % 128) == 0 or offset == total_size:

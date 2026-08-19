@@ -14,6 +14,12 @@ if(NOT BOOTLOADER_FDCAN_ID_FORMAT MATCHES "^(standard|extended)$")
     message(FATAL_ERROR "BOOTLOADER_FDCAN_ID_FORMAT must be 'standard' or 'extended'")
 endif()
 option(BOOTLOADER_USE_EEPROM_CONFIG "Load bootloader CAN node id and rates from VBDrive EEPROM config" ON)
+set(BOOTLOADER_MCU "STM32G431xx" CACHE STRING "STM32 device compile definition")
+set(BOOTLOADER_LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/stm32g431vbtx_flash.ld" CACHE FILEPATH "Bootloader linker script")
+set(BOOTLOADER_APP_END "0x08020000UL" CACHE STRING "Exclusive application flash end")
+set(BOOTLOADER_RAM_END "0x20008000UL" CACHE STRING "Exclusive application RAM end")
+set(BOOTLOADER_FDCAN_CLOCK_SOURCE "PCLK1" CACHE STRING "FDCAN clock source: PCLK1 or PLL")
+set(BOOTLOADER_STARTUP_FILE "${CMAKE_CURRENT_SOURCE_DIR}/startup_stm32g431xx.s" CACHE FILEPATH "MCU startup assembly")
 
 set(CMAKE_PROJECT_NAME VBBoot)
 
@@ -59,7 +65,13 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     -DUSE_HAL_DRIVER
     -DSTM32G4
+    -D${BOOTLOADER_MCU}
+    -DAPP_END_ADDR=${BOOTLOADER_APP_END}
+    -DAPP_RAM_END_ADDR=${BOOTLOADER_RAM_END}
 )
+if(BOOTLOADER_FDCAN_CLOCK_SOURCE STREQUAL "PLL")
+    target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE -DBOOTLOADER_FDCAN_CLOCK_PLL=1 -DBOOTLOADER_BOARD_RUKA2=1)
+endif()
 if(BOOTLOADER_FDCAN_ID_FORMAT STREQUAL "extended")
     target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE -DBOOTLOADER_FDCAN_ID_FORMAT_EXTENDED)
 endif()

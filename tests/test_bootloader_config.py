@@ -26,7 +26,7 @@ def test_app_validity_checks_stack_and_reset_ranges() -> None:
     text = source.read_text(encoding="utf-8")
 
     assert "0x20000000UL" in text
-    assert "app_sp <= 0x20008000UL" in text
+    assert "app_sp <= APP_RAM_END_ADDR" in text
     assert "APP_START_ADDR" in text
     assert "APP_END_ADDR" in text
 

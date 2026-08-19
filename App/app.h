@@ -24,7 +24,12 @@
 #endif
 
 #define APP_START_ADDR 0x08003000UL
+#ifndef APP_END_ADDR
 #define APP_END_ADDR 0x08020000UL
+#endif
+#ifndef APP_RAM_END_ADDR
+#define APP_RAM_END_ADDR 0x20008000UL
+#endif
 #define BOOT_FLASH_PAGE_SIZE 0x800UL
 #define CONFIG_EEPROM_I2C_DEV_ADDR 0x50U
 #define CONFIG_EEPROM_MEM_ADDR 0x0000U
@@ -65,6 +70,7 @@ typedef enum {
     BOOT_CMD_START = 1,
     BOOT_CMD_DATA = 2,
     BOOT_CMD_DONE = 3,
+    BOOT_CMD_DATA_STREAM = 4,
     BOOT_CMD_GET_ID = 5
 } BootCommand;
 
