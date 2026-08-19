@@ -208,6 +208,11 @@ def main() -> int:
         )
 
     image = load_intel_hex(Path(args.hex), args.app_end)
+    padding_size = (-len(image)) % args.data_chunk_size
+    if padding_size:
+        if APP_START_ADDR + len(image) + padding_size > args.app_end:
+            raise ValueError("padded image exceeds application flash window")
+        image += bytes([0xFF]) * padding_size
     crc32 = binascii.crc32(image) & 0xFFFFFFFF
     total_size = len(image)
 

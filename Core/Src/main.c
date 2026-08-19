@@ -75,6 +75,21 @@ int main(void)
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
 
+#if defined(BOOTLOADER_BOARD_RUKA2)
+  /* RUKA2 TMC5160 DRV_EN is active-low. Keep the motor power stage disabled
+     for the entire bootloader session, before the generated GPIO setup runs. */
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+  GPIOC->BSRR = GPIO_PIN_5;
+  {
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitStruct.Pin = GPIO_PIN_5;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  }
+#endif
+
   /* USER CODE BEGIN Init */
 
   /* USER CODE END Init */
